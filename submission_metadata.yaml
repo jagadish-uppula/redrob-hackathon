@@ -1,0 +1,78 @@
+# Redrob Hackathon — Submission Metadata
+# Team: U Jagadish
+
+# ============================================================================
+# Team identity
+# ============================================================================
+team_name: "U Jagadish"
+
+primary_contact:
+  name: "U Jagadish"
+  email: "UPDATE_YOUR_EMAIL_HERE"
+  phone: "+91-XXXXXXXXXX"
+
+team_members:
+  - name: "U Jagadish"
+    email: "UPDATE_YOUR_EMAIL_HERE"
+    role: "Solo Participant"
+
+# ============================================================================
+# Code and reproducibility
+# ============================================================================
+github_repo: "https://github.com/jagadish-uppula/redrob-hackathon.git"
+
+sandbox_link: "UPDATE_YOUR_STREAMLIT_CLOUD_URL_HERE"
+
+reproduce_command: "python rank.py --candidates ./candidates.jsonl --out ./submission.csv"
+
+# ============================================================================
+# Compute environment
+# ============================================================================
+compute:
+  platform: "Windows 11"
+  cpu_cores: 8
+  ram_gb: 16
+  python_version: "3.11.4"
+  os: "Windows 11"
+  uses_gpu_for_inference: false
+  has_network_during_ranking: false
+  pre_computation_required: false
+  pre_computation_time_minutes: 0
+
+# ============================================================================
+# AI tools declaration
+# ============================================================================
+ai_tools_used:
+  - "Gemini"
+
+ai_usage_summary: |
+  Used Gemini for architecture discussion, code review, and implementation
+  assistance. The ranking logic, feature engineering, and scoring weights
+  are original work based on careful analysis of the JD and candidate data.
+  No candidate data was fed to any LLM during ranking.
+
+# ============================================================================
+# Approach summary
+# ============================================================================
+methodology_summary: |
+  Rule-based, JD-agnostic ranking system with five scoring components:
+  (1) Title alignment — primary defense against keyword-stuffer traps,
+  (2) Career history analysis — keyword matching on job descriptions for
+  retrieval/search/ranking/production signals, with consulting-only
+  career detection, (3) Skills matching with trust validation — cross-
+  references proficiency claims with duration and assessment scores,
+  (4) Experience fit — Gaussian centered on JD's ideal range,
+  (5) Behavioral signals — weighted composite of response rate, activity
+  recency, notice period, and platform engagement. Honeypot detection
+  uses 6 heuristic checks for impossible profiles. Runtime ~2 minutes
+  for 100K candidates on CPU. Pure Python stdlib, zero external deps.
+
+# ============================================================================
+# Declarations
+# ============================================================================
+declarations:
+  read_submission_spec: true
+  code_is_original_work: true
+  no_collusion: true
+  honeypot_check_done: true
+  reproduction_tested: true

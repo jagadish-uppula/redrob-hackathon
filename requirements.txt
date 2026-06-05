@@ -1,0 +1,5 @@
+# No external dependencies required.
+# This project uses only the Python 3.11.4 standard library.
+#
+# For the Streamlit demo app (optional), install:
+streamlit>=1.30.0

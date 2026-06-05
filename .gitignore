@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+ENV/
+env/
+
+# Datasets and large files
+*.jsonl
+*.jsonl.gz
+candidates.jsonl
+sample_test.jsonl
+
+# Documents
+*.docx
+*.pdf
+
+# Output files
+submission.csv
+test_submission.csv
+
+# Keep sample files for Streamlit/testing if needed
+!sample_candidates.json
+
+# OS files
+.DS_Store
+Thumbs.db
