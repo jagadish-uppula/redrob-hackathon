@@ -122,9 +122,9 @@ with st.sidebar:
     
     if data_source == "Upload JSONL file":
         uploaded_file = st.file_uploader(
-            "Upload candidates.jsonl",
+            "Upload candidates.jsonl (up to 500 MB)",
             type=["jsonl", "json"],
-            help="Upload a JSONL file with candidate profiles. Max 100 candidates for the demo.",
+            help="Upload a JSONL file with candidate profiles. Supports the full 100K dataset.",
         )
         if uploaded_file:
             content = uploaded_file.read().decode("utf-8")
@@ -135,9 +135,6 @@ with st.sidebar:
                     except json.JSONDecodeError:
                         pass
             st.success(f"Loaded {len(candidates)} candidates")
-            if len(candidates) > 100:
-                candidates = candidates[:100]
-                st.warning("Truncated to 100 candidates for demo")
     else:
         sample_path = Path(__file__).parent / "sample_candidates.json"
         if sample_path.exists():
