@@ -114,8 +114,8 @@ with st.sidebar:
     
     data_source = st.radio(
         "Choose data source:",
-        ["Upload JSONL file", "Use sample data (50 candidates)"],
-        index=1,
+        ["Load local candidates.jsonl (Fastest)", "Upload JSONL file", "Use sample data (50 candidates)"],
+        index=0,
     )
     
     candidates = []
@@ -127,15 +127,17 @@ with st.sidebar:
             help="Upload a JSONL file with candidate profiles. Supports the full 100K dataset.",
         )
         if uploaded_file:
-            content = uploaded_file.read().decode("utf-8")
-            for line in content.strip().split("\n"):
-                if line.strip():
-                    try:
-                        candidates.append(json.loads(line))
-                    except json.JSONDecodeError:
-                        pass
+            with st.spinner("Parsing uploaded file..."):
+                for line in uploaded_file:
+                    line_str = line.decode("utf-8").strip()
+                    if line_str:
+                        try:
+                            candidates.append(json.loads(line_str))
+                        except json.JSONDecodeError:
+                            pass
             st.success(f"Loaded {len(candidates)} candidates")
-    else:
+            
+    elif data_source == "Use sample data (50 candidates)":
         sample_path = Path(__file__).parent / "sample_candidates.json"
         if sample_path.exists():
             with open(sample_path, "r", encoding="utf-8") as f:
@@ -143,6 +145,22 @@ with st.sidebar:
             st.success(f"Loaded {len(candidates)} sample candidates")
         else:
             st.error("sample_candidates.json not found!")
+            
+    elif data_source == "Load local candidates.jsonl (Fastest)":
+        local_path = Path(__file__).parent / "candidates.jsonl"
+        if local_path.exists():
+            with st.spinner("Loading candidates from local disk..."):
+                with open(local_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                candidates.append(json.loads(line))
+                            except json.JSONDecodeError:
+                                pass
+            st.success(f"Loaded {len(candidates)} candidates from local file")
+        else:
+            st.error("candidates.jsonl not found in the project directory!")
     
     st.divider()
     
