@@ -150,7 +150,9 @@ with st.sidebar:
     st.divider()
     
     st.header("⚙️ Configuration")
-    top_n = st.slider("Top N to rank", 5, min(100, max(len(candidates), 5)), min(50, max(len(candidates), 5)))
+    num_cands = len(candidates)
+    max_slider = min(100, max(num_cands, 2))
+    top_n = st.slider("Top N to rank", 1, max_slider, min(50, max_slider))
     show_details = st.checkbox("Show detailed breakdown", value=True)
     show_honeypots = st.checkbox("Highlight honeypot detections", value=True)
 
