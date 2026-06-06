@@ -120,6 +120,8 @@ CAREER_KEYWORDS_TIER1 = {
     "vector database": 3.0,
     "semantic search": 3.0,
     "hybrid search": 3.0,
+    "hybrid retrieval": 3.0,
+    "dense retrieval": 2.5,
     "faiss": 2.5,
     "elasticsearch": 2.0,
     "opensearch": 2.0,
@@ -134,6 +136,15 @@ CAREER_KEYWORDS_TIER1 = {
     "ndcg": 2.5,
     "mrr": 2.0,
     "mean average precision": 2.0,
+    # JD-specific: operational production signals for retrieval systems
+    "embedding drift": 3.5,
+    "index refresh": 3.0,
+    "retrieval quality": 3.0,
+    "retrieval-quality regression": 3.5,
+    "candidate-jd matching": 3.0,
+    "recruiter engagement": 2.5,
+    "talent intelligence": 2.5,
+    "talent matching": 2.5,
 }
 
 # Medium-value: general ML/NLP production
@@ -159,22 +170,36 @@ CAREER_KEYWORDS_TIER2 = {
     "learning-to-rank": 2.5,
 }
 
-# Production/deployment signals
+# Production/deployment signals — the "shipper" archetype the JD wants
+# JD explicitly says: "we'd rather you tilt slightly toward shipper than toward researcher"
 CAREER_KEYWORDS_PRODUCTION = {
     "production": 1.5,
     "deployed": 1.5,
-    "shipped": 1.5,
+    "shipped": 2.0,       # JD uses "shipped" repeatedly
     "real users": 2.0,
     "live system": 1.5,
-    "a/b test": 2.0,
-    "ab test": 1.5,
+    "a/b test": 2.5,       # JD explicitly requires A/B testing experience
+    "ab test": 2.0,
+    "a/b testing": 2.5,
     "scaled": 1.2,
     "latency": 1.0,
     "throughput": 1.0,
     "sla": 0.8,
-    "monitoring": 0.8,
+    "monitoring": 1.0,
     "real-time": 1.0,
-    "end-to-end": 1.0,
+    "end-to-end": 1.2,
+    # Shipper-specific signals
+    "working but not great": 1.5,  # Iterative improvement mindset
+    "offline benchmark": 2.5,
+    "online evaluation": 2.5,
+    "feedback loop": 2.0,
+    "recruiter-feedback": 2.5,
+    "recruiter feedback": 2.5,
+    "user feedback": 1.5,
+    "iterated": 1.0,
+    "improved metrics": 1.5,
+    "engagement metrics": 2.0,
+    "meaningful scale": 2.0,
 }
 
 # Data engineering (moderate relevance)

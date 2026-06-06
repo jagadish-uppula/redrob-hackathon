@@ -2,8 +2,11 @@
 Redrob Candidate Ranker — Streamlit Demo App
 
 A web-based interface for ranking candidates against any job description.
-Accepts a small candidate sample (≤100 candidates) via file upload or
-uses the bundled sample data.
+Supports:
+- Upload custom JD (text file or paste)
+- Upload candidate JSONL files up to 500 MB
+- Load local candidates.jsonl from disk
+- Dynamic scoring based on the uploaded JD
 
 Run with:
     streamlit run app.py
@@ -25,6 +28,11 @@ from src.features import extract_features
 from src.scorer import compute_score
 from src.reasoning import generate_reasoning
 from src.honeypot import detect_honeypot
+from src.jd_parser import (
+    JDRequirements,
+    build_senior_ai_engineer_jd,
+    parse_jd_text,
+)
 
 
 # =============================================================================
@@ -90,6 +98,13 @@ st.markdown("""
         border-radius: 12px;
         font-weight: bold;
     }
+    .jd-info {
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 8px;
+        padding: 0.8rem;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -110,16 +125,78 @@ st.markdown(
 # =============================================================================
 
 with st.sidebar:
-    st.header("📁 Input Data")
-    
+    # -----------------------------------------------------------------
+    # Section 1: Job Description
+    # -----------------------------------------------------------------
+    st.header("📋 Job Description")
+
+    jd_source = st.radio(
+        "Choose JD source:",
+        [
+            "Default JD (Senior AI Engineer)",
+            "Upload JD file (.txt)",
+            "Paste JD text",
+        ],
+        index=0,
+    )
+
+    jd_requirements = None
+    custom_jd_text = None
+
+    if jd_source == "Default JD (Senior AI Engineer)":
+        jd_requirements = build_senior_ai_engineer_jd()
+        st.success(f"Using: {jd_requirements.role_title}")
+
+    elif jd_source == "Upload JD file (.txt)":
+        jd_file = st.file_uploader(
+            "Upload job description (.txt)",
+            type=["txt"],
+            help="Upload a plain text file containing the job description.",
+        )
+        if jd_file:
+            custom_jd_text = jd_file.read().decode("utf-8")
+            jd_requirements = parse_jd_text(custom_jd_text)
+            st.success(f"Parsed: {jd_requirements.role_title}")
+            st.caption(
+                f"Category: **{jd_requirements.role_category}** | "
+                f"Experience: **{jd_requirements.min_years:.0f}–{jd_requirements.max_years:.0f}y** | "
+                f"Skills detected: **{len(jd_requirements.must_have_skills) + len(jd_requirements.nice_to_have_skills)}**"
+            )
+        else:
+            st.info("Upload a .txt file with the job description.")
+
+    elif jd_source == "Paste JD text":
+        custom_jd_text = st.text_area(
+            "Paste job description here:",
+            height=200,
+            placeholder="Paste the full job description text here...",
+        )
+        if custom_jd_text and len(custom_jd_text.strip()) > 50:
+            jd_requirements = parse_jd_text(custom_jd_text)
+            st.success(f"Parsed: {jd_requirements.role_title}")
+            st.caption(
+                f"Category: **{jd_requirements.role_category}** | "
+                f"Experience: **{jd_requirements.min_years:.0f}–{jd_requirements.max_years:.0f}y** | "
+                f"Skills detected: **{len(jd_requirements.must_have_skills) + len(jd_requirements.nice_to_have_skills)}**"
+            )
+        elif custom_jd_text:
+            st.warning("Please paste at least 50 characters of JD text.")
+
+    st.divider()
+
+    # -----------------------------------------------------------------
+    # Section 2: Candidate Data
+    # -----------------------------------------------------------------
+    st.header("📁 Candidate Data")
+
     data_source = st.radio(
         "Choose data source:",
         ["Load local candidates.jsonl (Fastest)", "Upload JSONL file", "Use sample data (50 candidates)"],
         index=0,
     )
-    
+
     candidates = []
-    
+
     if data_source == "Upload JSONL file":
         uploaded_file = st.file_uploader(
             "Upload candidates.jsonl (up to 500 MB)",
@@ -136,7 +213,7 @@ with st.sidebar:
                         except json.JSONDecodeError:
                             pass
             st.success(f"Loaded {len(candidates)} candidates")
-            
+
     elif data_source == "Use sample data (50 candidates)":
         sample_path = Path(__file__).parent / "sample_candidates.json"
         if sample_path.exists():
@@ -145,7 +222,7 @@ with st.sidebar:
             st.success(f"Loaded {len(candidates)} sample candidates")
         else:
             st.error("sample_candidates.json not found!")
-            
+
     elif data_source == "Load local candidates.jsonl (Fastest)":
         local_path = Path(__file__).parent / "candidates.jsonl"
         if local_path.exists():
@@ -161,9 +238,12 @@ with st.sidebar:
             st.success(f"Loaded {len(candidates)} candidates from local file")
         else:
             st.error("candidates.jsonl not found in the project directory!")
-    
+
     st.divider()
-    
+
+    # -----------------------------------------------------------------
+    # Section 3: Configuration
+    # -----------------------------------------------------------------
     st.header("⚙️ Configuration")
     num_cands = len(candidates)
     max_slider = min(100, max(num_cands, 2))
@@ -175,26 +255,42 @@ with st.sidebar:
 # Main Content
 # =============================================================================
 
-if candidates:
+if candidates and jd_requirements:
+    # Show JD info banner
+    st.markdown(
+        f'<div class="jd-info">'
+        f'<strong>📋 Ranking for:</strong> {jd_requirements.role_title} | '
+        f'<strong>Category:</strong> {jd_requirements.role_category} | '
+        f'<strong>Experience:</strong> {jd_requirements.min_years:.0f}–{jd_requirements.max_years:.0f} years | '
+        f'<strong>Skills:</strong> {len(jd_requirements.must_have_skills)} required, '
+        f'{len(jd_requirements.nice_to_have_skills)} nice-to-have'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
     if st.button("🚀 Run Ranking", type="primary", use_container_width=True):
-        
+
         # Progress bar
         progress = st.progress(0, text="Scoring candidates...")
         t0 = time.time()
-        
+
         scored = []
         for i, candidate in enumerate(candidates):
-            features = extract_features(candidate)
-            score_result = compute_score(candidate, features)
+            features = extract_features(candidate, jd_requirements=jd_requirements)
+            score_result = compute_score(candidate, features, jd_requirements=jd_requirements)
             scored.append((candidate, features, score_result))
-            progress.progress((i + 1) / len(candidates), text=f"Scoring {i+1}/{len(candidates)}...")
-        
+            if (i + 1) % max(1, len(candidates) // 100) == 0:
+                progress.progress(
+                    (i + 1) / len(candidates),
+                    text=f"Scoring {i+1}/{len(candidates)}...",
+                )
+
         # Sort by score
         scored.sort(key=lambda x: x[2]["final_score"], reverse=True)
-        
+
         elapsed = time.time() - t0
         progress.progress(1.0, text=f"✅ Scored {len(candidates)} candidates in {elapsed:.2f}s")
-        
+
         # --- Metrics row ---
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -207,18 +303,18 @@ if candidates:
         with col4:
             honeypot_count = sum(1 for _, _, sr in scored if sr.get("penalties") and any("HONEYPOT" in p for p in sr["penalties"]))
             st.metric("Honeypots Detected", honeypot_count)
-        
+
         st.divider()
-        
+
         # --- Ranking Results ---
         st.header("📊 Ranking Results")
-        
+
         for rank, (candidate, features, score_result) in enumerate(scored[:top_n], 1):
             profile = candidate["profile"]
             signals = candidate["redrob_signals"]
             title = profile["current_title"]
             score = score_result["final_score"]
-            
+
             # Rank badge
             if rank == 1:
                 badge = "🥇"
@@ -228,11 +324,11 @@ if candidates:
                 badge = "🥉"
             else:
                 badge = f"#{rank}"
-            
+
             # Honeypot warning
             is_hp = any("HONEYPOT" in p for p in score_result.get("penalties", []))
             hp_icon = " ⚠️ HONEYPOT" if is_hp and show_honeypots else ""
-            
+
             with st.expander(
                 f"{badge} {profile['anonymized_name']} — {title} | "
                 f"{profile['years_of_experience']}y | "
@@ -240,21 +336,21 @@ if candidates:
                 expanded=(rank <= 3),
             ):
                 col_a, col_b = st.columns([2, 1])
-                
+
                 with col_a:
                     st.markdown(f"**Company:** {profile['current_company']} ({profile['current_industry']})")
                     st.markdown(f"**Location:** {profile['location']}, {profile['country']}")
                     st.markdown(f"**Headline:** {profile['headline']}")
-                    
+
                     reasoning = generate_reasoning(candidate, features, score_result, rank)
                     st.info(f"**Reasoning:** {reasoning}")
-                
+
                 with col_b:
                     st.markdown(f"**Response Rate:** {signals['recruiter_response_rate']:.0%}")
                     st.markdown(f"**Notice Period:** {signals['notice_period_days']} days")
                     st.markdown(f"**Open to Work:** {'✅' if signals['open_to_work_flag'] else '❌'}")
                     st.markdown(f"**GitHub Score:** {signals['github_activity_score']}")
-                
+
                 if show_details:
                     st.markdown("---")
                     st.markdown("**Score Breakdown:**")
@@ -263,14 +359,14 @@ if candidates:
                     for col, (key, val) in zip(cols, breakdown.items()):
                         with col:
                             st.metric(key.replace("_", " ").title(), f"{val:.3f}")
-                    
+
                     if score_result.get("penalties"):
                         st.warning("**Penalties:** " + "; ".join(score_result["penalties"]))
-        
+
         # --- Download CSV ---
         st.divider()
         st.header("📥 Download Submission")
-        
+
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(["candidate_id", "rank", "score", "reasoning"])
@@ -282,7 +378,7 @@ if candidates:
                 f"{score_result['final_score']:.4f}",
                 reasoning,
             ])
-        
+
         csv_content = output.getvalue()
         st.download_button(
             label="⬇️ Download submission.csv",
@@ -292,6 +388,8 @@ if candidates:
             use_container_width=True,
         )
 
+elif not jd_requirements:
+    st.warning("👈 Please select or upload a Job Description in the sidebar first.")
 else:
     st.info("👈 Upload a JSONL file or select sample data from the sidebar, then click **Run Ranking**.")
 

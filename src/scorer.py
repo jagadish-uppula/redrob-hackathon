@@ -6,6 +6,8 @@ penalties for honeypots, consulting-only careers, and other red flags
 identified from the JD.
 """
 
+from typing import Optional
+
 from src.config import (
     SCORING_WEIGHTS,
     HONEYPOT_PENALTY,
@@ -17,14 +19,20 @@ from src.config import (
     DEFAULT_TITLE_SCORE,
 )
 from src.honeypot import detect_honeypot
+from src.jd_parser import JDRequirements
 
 
-def compute_score(candidate: dict, features: dict) -> dict:
+def compute_score(
+    candidate: dict,
+    features: dict,
+    jd_requirements: Optional[JDRequirements] = None,
+) -> dict:
     """Compute the final ranking score for a candidate.
 
     Args:
         candidate: The raw candidate dict from candidates.jsonl
         features: The feature dict from features.extract_features()
+        jd_requirements: Optional JD requirements (reserved for future use)
 
     Returns:
         dict with 'final_score', 'base_score', 'penalties', and 'breakdown'

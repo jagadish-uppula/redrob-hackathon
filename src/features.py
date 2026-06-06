@@ -17,7 +17,7 @@ Feature groups:
 import math
 import re
 from datetime import datetime, date
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from src.config import (
     TITLE_SCORES, DEFAULT_TITLE_SCORE,
@@ -32,14 +32,23 @@ from src.config import (
     ACTIVITY_DECAY_DAYS, IDEAL_NOTICE_DAYS, MAX_ACCEPTABLE_NOTICE,
     MIN_RESPONSE_RATE, IDEAL_RESPONSE_RATE, MIN_PROFILE_COMPLETE,
 )
+from src.jd_parser import JDRequirements, compute_dynamic_title_score
 
 
 # Reference date for the dataset (competition runs ~June 2026)
 REFERENCE_DATE = date(2026, 6, 1)
 
 
-def extract_features(candidate: dict) -> Dict[str, float]:
+def extract_features(
+    candidate: dict,
+    jd_requirements: Optional[JDRequirements] = None,
+) -> Dict[str, float]:
     """Extract all scoring features from a candidate record.
+
+    Args:
+        candidate: Raw candidate dict from candidates.jsonl
+        jd_requirements: Optional JD requirements for dynamic scoring.
+            If None, uses hardcoded config (backward compatible).
 
     Returns a dict of feature_name → float (all normalized to 0-1 range).
     """
@@ -55,7 +64,7 @@ def extract_features(candidate: dict) -> Dict[str, float]:
     # -----------------------------------------------------------------
     # 1. TITLE MATCH
     # -----------------------------------------------------------------
-    features["title_match"] = _compute_title_score(profile)
+    features["title_match"] = _compute_title_score(profile, jd_requirements)
 
     # -----------------------------------------------------------------
     # 2. CAREER RELEVANCE
@@ -70,7 +79,7 @@ def extract_features(candidate: dict) -> Dict[str, float]:
     # -----------------------------------------------------------------
     # 3. SKILLS MATCH
     # -----------------------------------------------------------------
-    skills_result = _compute_skills_score(skills, signals, profile)
+    skills_result = _compute_skills_score(skills, signals, profile, jd_requirements)
     features["skills_match"] = skills_result["match_score"]
     features["skill_trust"] = skills_result["trust_score"]
     features["must_have_count"] = skills_result["must_have_count"]
@@ -79,7 +88,7 @@ def extract_features(candidate: dict) -> Dict[str, float]:
     # -----------------------------------------------------------------
     # 4. EXPERIENCE FIT
     # -----------------------------------------------------------------
-    features["experience_fit"] = _compute_experience_score(profile)
+    features["experience_fit"] = _compute_experience_score(profile, jd_requirements)
 
     # -----------------------------------------------------------------
     # 5. EDUCATION
@@ -103,9 +112,22 @@ def extract_features(candidate: dict) -> Dict[str, float]:
 # 1. TITLE MATCHING
 # =====================================================================
 
-def _compute_title_score(profile: dict) -> float:
-    """Score based on current job title alignment with target role."""
+def _compute_title_score(
+    profile: dict,
+    jd_requirements: Optional[JDRequirements] = None,
+) -> float:
+    """Score based on current job title alignment with target role.
+
+    If jd_requirements is provided and has target_titles, uses dynamic
+    title scoring. Otherwise falls back to hardcoded TITLE_SCORES.
+    """
     title = profile.get("current_title", "")
+
+    # If custom JD provided → use dynamic scoring
+    if jd_requirements and jd_requirements.target_titles:
+        return compute_dynamic_title_score(title, jd_requirements)
+
+    # Default: hardcoded lookup
     return TITLE_SCORES.get(title, DEFAULT_TITLE_SCORE)
 
 
@@ -211,9 +233,26 @@ def _compute_career_relevance(career: list, profile: dict) -> dict:
 # 3. SKILLS MATCH
 # =====================================================================
 
-def _compute_skills_score(skills: list, signals: dict, profile: dict) -> dict:
+def _compute_skills_score(
+    skills: list,
+    signals: dict,
+    profile: dict,
+    jd_requirements: Optional[JDRequirements] = None,
+) -> dict:
     """Score skills based on must-have/nice-to-have match, proficiency depth,
-    and trust validation (to catch keyword stuffers)."""
+    and trust validation (to catch keyword stuffers).
+
+    If jd_requirements is provided, uses the JD's extracted skill lists.
+    Otherwise falls back to hardcoded MUST_HAVE_SKILLS / NICE_TO_HAVE_SKILLS.
+    """
+
+    # Select skill sets based on JD
+    if jd_requirements and jd_requirements.must_have_skills:
+        mh_set = {s.lower() for s in jd_requirements.must_have_skills}
+        nth_set = {s.lower() for s in jd_requirements.nice_to_have_skills}
+    else:
+        mh_set = MUST_HAVE_SKILLS
+        nth_set = NICE_TO_HAVE_SKILLS
 
     must_have_count = 0
     nice_to_have_count = 0
@@ -236,9 +275,9 @@ def _compute_skills_score(skills: list, signals: dict, profile: dict) -> dict:
         endorsements = sk.get("endorsements", 0)
 
         # Check must-have and nice-to-have matches
-        if name_lower in MUST_HAVE_SKILLS or any(mh in name_lower for mh in MUST_HAVE_SKILLS):
+        if name_lower in mh_set or any(mh in name_lower for mh in mh_set):
             must_have_count += 1
-        elif name_lower in NICE_TO_HAVE_SKILLS or any(nh in name_lower for nh in NICE_TO_HAVE_SKILLS):
+        elif name_lower in nth_set or any(nh in name_lower for nh in nth_set):
             nice_to_have_count += 1
 
         # Trust score: proficiency should be backed by duration and endorsements
@@ -291,21 +330,40 @@ def _compute_skills_score(skills: list, signals: dict, profile: dict) -> dict:
 # 4. EXPERIENCE FIT
 # =====================================================================
 
-def _compute_experience_score(profile: dict) -> float:
-    """Gaussian scoring centered on ideal experience years."""
+def _compute_experience_score(
+    profile: dict,
+    jd_requirements: Optional[JDRequirements] = None,
+) -> float:
+    """Gaussian scoring centered on ideal experience years.
+
+    If jd_requirements is provided, uses its ideal_years.
+    Otherwise falls back to config defaults.
+    """
     yoe = profile.get("years_of_experience", 0)
 
-    if yoe < MIN_RELEVANT_YEARS * 0.5:
+    # Use JD's experience range if available
+    if jd_requirements:
+        ideal = jd_requirements.ideal_years
+        min_y = jd_requirements.min_years
+        max_y = jd_requirements.max_years
+    else:
+        ideal = IDEAL_EXPERIENCE_YEARS
+        min_y = MIN_RELEVANT_YEARS
+        max_y = MAX_RELEVANT_YEARS
+
+    if yoe < min_y * 0.5:
         return 0.05  # Way too junior
 
     # Gaussian centered at ideal years
-    deviation = (yoe - IDEAL_EXPERIENCE_YEARS) / EXPERIENCE_SIGMA
+    sigma = (max_y - min_y) / 2.5  # Adaptive sigma
+    sigma = max(sigma, 1.5)  # Minimum sigma
+    deviation = (yoe - ideal) / sigma
     score = math.exp(-0.5 * deviation * deviation)
 
     # Small penalty for being way under or over
-    if yoe < MIN_RELEVANT_YEARS:
+    if yoe < min_y:
         score *= 0.5
-    elif yoe > MAX_RELEVANT_YEARS:
+    elif yoe > max_y + 3:
         score *= 0.7
 
     return score
